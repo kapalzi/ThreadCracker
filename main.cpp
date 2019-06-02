@@ -12,12 +12,16 @@
 #include "md5.h"
 #include <thread>
 #include <unistd.h>
+#include <atomic>
+#include <mutex>
 
 using namespace std;
 
 #define threadCount 6000
-atomic_int finishedThreads = 0; //jak 6000 to koniec
-atomic_bool finish = false; // jeśli znajdzie hasło to true
+std::atomic<int> finishedThreads; //jak 6000 to koniec
+std::atomic<bool> finish; // jeśli znajdzie hasło to true
+string findPassword;
+static std::mutex findPasswordMutex = std::mutex();;
 vector<thread> threads;
 
 vector<string>nextPasswordsVector(int sizeOfVector, int lastIndex, string path) {
@@ -61,18 +65,32 @@ int numberOfLines(string path) {
         i++;
     }
     file.close();
-    
     return i;
 }
 
 void startTmpThread(vector<string> passwords) {
     
+    std::atomic<bool> findPassword;
+    findPassword.store(false);
+    std::string temporaryPassword;
+    std::string hashedPassword;
+
+    while (findPassword.load() && passwords.size() > 0)
+    {
+        temporaryPassword = passwords.back();
+        passwords.pop_back();
+        hashedPassword = md5(temporaryPassword);
+    }
+    
+
     finishedThreads += 1;
 }
 
 int main(int argc, char **argv) {
+    finishedThreads.store(0);
+    finish.store(false);
     //    string path = argv[1]
-    string path = "/Users/krzysztof/Documents/PWr/semestr-6/so2-projekt/etap2/Filozofowie1/Filozofowie1/passwords.txt";
+    string path = "./passwords.txt";
     int lines = numberOfLines(path);
     
     vector<string> currentPasswords;
