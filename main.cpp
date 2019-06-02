@@ -10,8 +10,15 @@
 #include <string>
 #include <fstream>
 #include "md5.h"
+#include <thread>
+#include <unistd.h>
 
 using namespace std;
+
+#define threadCount 6000
+atomic_int finishedThreads = 0; //jak 6000 to koniec
+atomic_bool finish = false; // jeśli znajdzie hasło to true
+vector<thread> threads;
 
 vector<string>nextPasswordsVector(int sizeOfVector, int lastIndex, string path) {
     vector<string> currentPasswords;
@@ -23,7 +30,7 @@ vector<string>nextPasswordsVector(int sizeOfVector, int lastIndex, string path) 
     while (getline(file, temp))
     {
         if (i > lastIndex) {
-            currentPasswords.push_back(md5(temp));
+            currentPasswords.push_back(temp);
         }
         
         if (i == lastIndex + sizeOfVector ) {
@@ -35,6 +42,12 @@ vector<string>nextPasswordsVector(int sizeOfVector, int lastIndex, string path) 
     file.close();
     
     return currentPasswords;
+}
+
+void stopAllThreads() {
+    for ( auto&& t : threads) {
+        t.join();
+    }
 }
 
 int numberOfLines(string path) {
@@ -52,23 +65,45 @@ int numberOfLines(string path) {
     return i;
 }
 
+void startTmpThread(vector<string> passwords) {
+    
+    finishedThreads += 1;
+}
+
 int main(int argc, char **argv) {
-//    string path = argv[1]
+    //    string path = argv[1]
     string path = "/Users/krzysztof/Documents/PWr/semestr-6/so2-projekt/etap2/Filozofowie1/Filozofowie1/passwords.txt";
     int lines = numberOfLines(path);
     
     vector<string> currentPasswords;
     int lastIndex = 0;
-    int sizeOfVector = 10000;
+    int sizeOfVector = 650; //        500mb/128 = 3 906 250 / 6000 = 651,041666
+    int i = 0;
     while (lastIndex < lines) {
-        clock_t begin_time = clock();
         currentPasswords = nextPasswordsVector(sizeOfVector, lastIndex, path);
         lastIndex += sizeOfVector;
         
+        if (threads.size() < threadCount) {
+            threads.push_back(thread(startTmpThread, currentPasswords));
+        } else {
+            while (finishedThreads < threadCount) {
+                //czekanie az sie skończą xd
+            }
+        }
         
-        printf("%lu\n",currentPasswords.size());
-        printf("%f\n",float(clock () - begin_time)/CLOCKS_PER_SEC);
+        if (finishedThreads == threadCount) {
+            stopAllThreads();
+            finishedThreads = 0;
+            threads.clear();
+            printf("%i\n",i);
+        }
+        
+        i++;
+        
+        if (finish == true) break;
     }
-
+    stopAllThreads();
+    
+    printf("%i",i);
     return 0;
 }
